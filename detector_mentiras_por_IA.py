@@ -22,7 +22,11 @@ CAM_INDEX = 1
 MODEL_FILE = 'modelo_detector.joblib'
 EMOCIONES = ['happy', 'neutral', 'sad', 'angry', 'fear', 'surprise']
 NEGATIVAS = ['sad', 'angry', 'fear', 'surprise']
-DB_CONFIG = {'host': 'localhost', 'user': 'alumno', 'password': 'alumnoipm', 'database': 'lie2'}
+# CORREGIDO: Configuración de la base de datos correcta
+DB_CONFIG = {'host': 'localhost', 
+             'user': 'alumno26.oddo.nicolas', 
+             'password': 'uxqH1g2ImJPBAVzcHAnclg==', 
+             'database': 'Db_detectormentiras'}
 
 
 # === LÓGICA DE MACHINE LEARNING ===
@@ -79,7 +83,9 @@ def predecir_con_modelo(datos_medicion_actual, model):
 
 # === FUNCIONES BASE DE DATOS ===
 def conectar_db():
-    return mysql.connector.connect(**DB_CONFIG, charset='utf8mb4', use_unicode=True)
+    return mysql.connector.connect(**DB_CONFIG, charset='utf8mb4', use_unicode=True, ssl_disabled=True)
+
+# RESTAURADO: Función para insertar persona CON DNI
 def insertar_persona(nombre, apellido, edad, dni, comentario, genero, rango):
     conn = conectar_db(); cursor = conn.cursor()
     cursor.execute("SELECT idpersona FROM personas WHERE dni = %s", (dni,));
@@ -87,29 +93,39 @@ def insertar_persona(nombre, apellido, edad, dni, comentario, genero, rango):
     sql = "INSERT INTO personas (nombre, apellido, edad, dni, comentario, genero, etario) VALUES (%s, %s, %s, %s, %s, %s, %s)"
     cursor.execute(sql, (nombre, apellido, edad, dni, comentario or None, genero, rango)); conn.commit()
     id_persona = cursor.lastrowid; conn.close(); return id_persona
+
+# RESTAURADO: Función para obtener personas CON DNI
 def obtener_personas():
     conn = conectar_db(); cursor = conn.cursor()
-    cursor.execute("SELECT idpersona, nombre, apellido, dni FROM personas"); personas = cursor.fetchall(); conn.close(); return personas
+    cursor.execute("SELECT idpersona, nombre, apellido, dni FROM personas"); 
+    personas = cursor.fetchall(); conn.close(); return personas
+
 def crear_medicion(id_persona):
     conn = conectar_db(); cursor = conn.cursor(); inicio = datetime.now()
     sql = "INSERT INTO medicion (tiempoinicio, personas_idpersona) VALUES (%s, %s)"; cursor.execute(sql, (inicio, id_persona)); conn.commit();
     id_medicion = cursor.lastrowid; conn.close(); return id_medicion
+
 def finalizar_medicion(id_medicion, tipo='prediccion'):
     conn = conectar_db(); cursor = conn.cursor(); fin = datetime.now()
     sql = "UPDATE medicion SET tiempofin = %s, tipo = %s WHERE idmedicion = %s"; cursor.execute(sql, (fin, tipo, id_medicion)); conn.commit(); conn.close()
+
 def guardar_dato(medicion_id, emocion, pulsaciones, humedad):
     conn = conectar_db(); cursor = conn.cursor(); now = datetime.now()
     sql = "INSERT INTO datos (emocion, pulsaciones, humedadcorporal, `fecha/tiempo`, medicion_idmedicion) VALUES (%s, %s, %s, %s, %s)"; cursor.execute(sql, (emocion, pulsaciones, humedad, now, medicion_id)); conn.commit(); conn.close()
+
 def guardar_resultado(id_medicion, resultado_maquina):
     valor = None if resultado_maquina.startswith("indeterminado") else (1 if resultado_maquina == "verdad" else 0)
     conn = conectar_db(); cursor = conn.cursor()
     sql = "UPDATE medicion SET resultado = %s WHERE idmedicion = %s"; cursor.execute(sql, (valor, id_medicion)); conn.commit(); conn.close()
+
 def guardar_respuesta_real(id_medicion, respuesta_real):
     conn = conectar_db(); cursor = conn.cursor()
     sql = "UPDATE medicion SET respuesta = %s WHERE idmedicion = %s"; cursor.execute(sql, (respuesta_real, id_medicion)); conn.commit(); conn.close()
+
 def guardar_comentario_medicion(id_medicion, comentario):
     conn = conectar_db(); cursor = conn.cursor()
     sql = "UPDATE medicion SET comentario = %s WHERE idmedicion = %s"; cursor.execute(sql, (comentario, id_medicion)); conn.commit(); conn.close()
+
 def determinar_rango_etario(edad):
     if edad <= 11: return 'niño'
     elif edad <= 17: return 'teen'
@@ -141,6 +157,7 @@ class DetectorApp:
     def build_ui(self):
         main_frame = tk.Frame(self.root); main_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ns")
         frame = tk.LabelFrame(main_frame, text="Datos Persona"); frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+        # RESTAURADO: Campo "DNI" en la interfaz
         labels = ["Nombre", "Apellido", "Edad", "DNI", "Comentario"]
         self.entries = {}
         for i, text in enumerate(labels):
@@ -163,19 +180,30 @@ class DetectorApp:
         self.video_label = tk.Label(video_frame); self.video_label.pack()
 
     def set_genero(self, g): self.genero = g; messagebox.showinfo("Género",f"Género seleccionado: {g.capitalize()}")
-    def cargar_personas(self): self.personas_dict = {f"{p[1]} {p[2]}  — DNI: {p[3]}":p[0] for p in obtener_personas()}; self.combo["values"] = list(self.personas_dict.keys())
+    
+    # RESTAURADO: Cargar personas mostrando el DNI
+    def cargar_personas(self): 
+        self.personas_dict = {f"{p[1]} {p[2]} — DNI: {p[3]}":p[0] for p in obtener_personas()}; 
+        self.combo["values"] = list(self.personas_dict.keys())
+        
     def seleccionar_persona(self, event): self.persona_id = self.personas_dict.get(self.combo.get()); self.boton_iniciar.config(state="normal")
+    
+    # RESTAURADO: Registrar persona CON DNI
     def registrar_persona(self):
         values = {lbl: entry.get() for lbl, entry in self.entries.items()}
-        if not all((values["Nombre"], values["Apellido"], values["Edad"], values["DNI"], self.genero)): messagebox.showerror("Faltan datos", "Nombre, Apellido, Edad, DNI y Género son obligatorios."); return
-        try: edad, dni = int(values["Edad"]), int(values["DNI"])
-        except ValueError: messagebox.showerror("Datos inválidos", "Edad y DNI deben ser números."); return
+        if not all((values["Nombre"], values["Apellido"], values["Edad"], values["DNI"], self.genero)): 
+            messagebox.showerror("Faltan datos", "Nombre, Apellido, Edad, DNI y Género son obligatorios."); return
+        try: 
+            edad, dni = int(values["Edad"]), int(values["DNI"])
+        except ValueError: 
+            messagebox.showerror("Datos inválidos", "Edad y DNI deben ser números."); return
         try:
             self.persona_id = insertar_persona(values["Nombre"], values["Apellido"], edad, dni, values["Comentario"], self.genero, determinar_rango_etario(edad))
             messagebox.showinfo("Registro Exitoso", f"Persona '{values['Nombre']}' registrada.")
             self.boton_iniciar.config(state="normal"); self.cargar_personas()
             for entry in self.entries.values(): entry.delete(0, tk.END)
-        except ValueError as exc: messagebox.showerror("Error de Registro", str(exc))
+        except ValueError as exc: 
+            messagebox.showerror("Error de Registro", str(exc))
 
     def iniciar(self):
         if not self.cam_ok: messagebox.showerror("Error de Cámara", "No se puede iniciar la medición."); return
@@ -211,7 +239,7 @@ class DetectorApp:
         if not cap.isOpened(): print(f"Cámara en índice {CAM_INDEX} no se pudo abrir."); self.cam_ok = False; return
         self.cam_ok = True
         while True:
-            if self.root.winfo_exists() == 0: break 
+            if not self.root.winfo_exists(): break 
             ret, frame = cap.read()
             if ret:
                 self.latest_frame = frame.copy()
@@ -221,7 +249,7 @@ class DetectorApp:
                         emotion = result[0]['dominant_emotion']
                         with self.emotion_lock: self.emotion_samples.append(emotion)
                     except Exception: pass
-            time.sleep(0.1) # Ritmo de captura ~10 FPS
+            time.sleep(0.1) 
         cap.release(); print("Hilo de cámara finalizado.")
 
     def finalizar(self):
