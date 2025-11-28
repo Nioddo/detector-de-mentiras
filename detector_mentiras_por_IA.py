@@ -18,7 +18,7 @@ import os
 # === CONFIGURACIÓN ===
 SERIAL_PORT = "/dev/ttyUSB0"
 BAUD_RATE = 115200
-CAM_INDEX = 1
+CAM_INDEX = 0
 MODEL_FILE = 'modelo_detector.joblib'
 EMOCIONES = ['happy', 'neutral', 'sad', 'angry', 'fear', 'surprise']
 NEGATIVAS = ['sad', 'angry', 'fear', 'surprise']
